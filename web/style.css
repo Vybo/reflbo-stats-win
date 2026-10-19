@@ -1,0 +1,36 @@
+:root {
+  --bg: #f4f5f2; --card: #ffffff; --fg: #1d201c; --muted: #61665e; --line: #d6d9d2; --accent: #2f5d50;
+  --ok: #2c7a4b; --warn: #a06000; --bad: #b3261e;
+  font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #151714; --card: #1e211d; --fg: #e5e8e2; --muted: #a0a69b; --line: #363a34; --accent: #8cc4b2;
+          --ok: #6fcf97; --warn: #f2c94c; --bad: #ff8a80; }
+}
+body { margin: 0; background: var(--bg); color: var(--fg); }
+header { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 18px; margin: 0; }
+main { max-width: 920px; margin: 0 auto; padding: 16px 20px 48px; display: grid; gap: 16px; }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+h2 { font-size: 15px; margin: 0 0 10px; }
+.muted { color: var(--muted); }
+.pill { font-size: 12px; padding: 2px 8px; border-radius: 10px; border: 1px solid currentColor; }
+.pill.ok { color: var(--ok); } .pill.warn { color: var(--warn); } .pill.bad { color: var(--bad); }
+.error { color: var(--bad); }
+input, select, button { font: inherit; color: inherit; }
+input[type=text], input[type=number], select { background: transparent; border: 1px solid var(--line); border-radius: 4px; padding: 3px 6px; }
+button { background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer; }
+button.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+details { border-top: 1px solid var(--line); padding: 4px 0; }
+summary { cursor: pointer; padding: 4px 0; }
+.item { display: grid; grid-template-columns: 24px 1fr auto; gap: 8px; align-items: center; padding: 2px 0; }
+.value { font-variant-numeric: tabular-nums; color: var(--muted); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+td input[type=text] { width: 9em; } td input[type=number] { width: 5.5em; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+code { font: 13px ui-monospace, Menlo, Consolas, monospace; }
+.scroll { overflow-x: auto; }
