@@ -318,3 +318,56 @@ test('a LAN port the app can\'t open says so', async () => {
   assert.match(text(p.root), /The boards can't reach this PC: listen tcp :47123: bind: address already in use\. Choose another LAN port under App, and Apply\./);
   assert.match(text(p.root), /port —/);
 });
+
+test('sensors that appear after the page opened show up, and the picked rows find their sensors', async () => {
+  const early = baseState();
+  early.hwinfo = { status: 'not running', detail: '' };
+  early.items = [];
+  const p = await open(early);
+  assert.match(text(p.root), /Not in HWiNFO now/);
+  p.setState(baseState());
+  await p.tick();
+  assert.equal(checkbox(p.root, 'Total CPU Usage').checked, true);
+  assert.equal(checkbox(p.root, 'CPU (Tctl/Tdie)').checked, false);
+  assert.doesNotMatch(text(p.root), /Not in HWiNFO now/);
+  assert.match(text(p.root), /12 %/);
+});
+
+test('a scale may use a decimal comma, and one that is not a number blocks Save with a message', async () => {
+  const saved = [];
+  const p = await open(baseState(), { 'PUT /api/readings': (body, state) => { saved.push(body); return reply(200, { ...state, picked: body }); } });
+  const scale = all(p.root, 'input').find((e) => e.attrs['aria-label'] === 'scale' && e.value === '1/1024');
+  scale.value = '0,5';
+  await scale.fire('input');
+  assert.equal(button(p.root, 'Save').disabled, false);
+  await button(p.root, 'Save').click();
+  assert.equal(saved[0][1].scale, 0.5);
+  const again = all(p.root, 'input').find((e) => e.attrs['aria-label'] === 'scale' && e.value === '1/2');
+  again.value = '1:1024';
+  await again.fire('input');
+  assert.equal(button(p.root, 'Save').disabled, true);
+  assert.match(text(p.root), /ram_used: the scale must be a number above 0/);
+  again.value = '1/1024';
+  await again.fire('input');
+  assert.equal(button(p.root, 'Save').disabled, false);
+  assert.doesNotMatch(text(p.root), /the scale must be a number above 0/);
+});
+
+test('a newly ticked reading shows the decimals the app will save, and a changed unit moves it', async () => {
+  const saved = [];
+  const p = await open(baseState(), { 'PUT /api/readings': (body, state) => { saved.push(body); return reply(200, state); } });
+  const box = checkbox(p.root, 'CPU (Tctl/Tdie)');
+  box.checked = true;
+  await box.fire('change');
+  const shownDecimals = () => {
+    const sel = all(p.root, 'select').filter((e) => e.attrs['aria-label'] === 'decimals')[2];
+    return text(sel.children.find((o) => o.selected === true));
+  };
+  assert.equal(shownDecimals(), '1'); // °C: the app saves 1
+  const unit = all(p.root, 'input').filter((e) => e.attrs['aria-label'] === 'unit')[2];
+  unit.value = 'V';
+  await unit.fire('input');
+  assert.equal(shownDecimals(), '3');
+  await button(p.root, 'Save').click();
+  assert.deepEqual(saved[0][2], { key: 'k:temp', unit: 'V' }); // nothing picked: the app's default stands
+});

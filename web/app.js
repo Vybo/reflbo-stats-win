@@ -30,7 +30,7 @@ function h(tag, attrs = {}, ...kids) {
     if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
     else if (k === 'text') el.textContent = v;
     else if (k === 'class') el.className = v;
-    else if (k === 'value' || k === 'checked' || k === 'disabled' || k === 'open') el[k] = v;
+    else if (k === 'value' || k === 'selected' || k === 'checked' || k === 'disabled' || k === 'open') el[k] = v;
     else el.setAttribute(k, v === true ? '' : String(v));
   }
   el.append(...kids.flat(Infinity).filter((k) => k !== null && k !== undefined && k !== false));
@@ -61,9 +61,9 @@ function number(v, decimals) {
   return decimals === undefined ? String(Math.round(v * 100) / 100) : v.toFixed(decimals);
 }
 
-/* A scale as typed, a number or a fraction ("1/1024"); NaN for anything else. */
+/* A scale as typed, a number (a comma works as the point) or a fraction ("1/1024"); NaN for anything else. */
 function parseScale(text) {
-  const m = /^\s*([0-9]*\.?[0-9]+)\s*(?:\/\s*([0-9]*\.?[0-9]+))?\s*$/.exec(text);
+  const m = /^\s*([0-9]*\.?[0-9]+)\s*(?:\/\s*([0-9]*\.?[0-9]+))?\s*$/.exec(text.replace(/,/g, '.'));
   if (!m) return NaN;
   return m[2] === undefined ? Number(m[1]) : Number(m[1]) / Number(m[2]);
 }
@@ -84,6 +84,25 @@ function boardValue(r) {
   return `${number(it.value * (r.scale || 1), r.decimals)} ${r.unit || it.unit}`.trim();
 }
 
+/* The first scale the app would refuse: typed, but not a finite number above 0. A scale left out is 1. */
+function badScale() {
+  return picked.find((r) => r.scale !== undefined && !(Number.isFinite(r.scale) && r.scale > 0));
+}
+
+/* What the app saves for a reading's decimals when the page sends none (internal/server/ui.go). */
+function defaultDecimals(unit) {
+  if (['%', 'MHz', 'MB', 'RPM', 'KB/s', 'MB/s'].includes(unit)) return 0;
+  return unit === 'V' ? 3 : 1;
+}
+
+function applyScaleCheck() {
+  const bad = badScale();
+  if (!bad || !parts.save) return;
+  parts.save.disabled = true;
+  parts.msg.className = 'error';
+  parts.msg.textContent = `${bad.id || bad.label || bad.key}: the scale must be a number above 0`;
+}
+
 /* An edit only updates Save, Undo and the message in place: redrawing the table would take the focus from the
  * field being typed in, and the Save button from under the click that ends the edit. */
 function setDirty(on) {
@@ -94,6 +113,7 @@ function setDirty(on) {
     parts.undo.disabled = !dirty;
     parts.msg.className = 'muted';
     parts.msg.textContent = '';
+    applyScaleCheck();
   }
 }
 
@@ -111,7 +131,7 @@ function hwinfoSection() {
     state.hwinfo.detail ? h('p', { class: 'error', text: state.hwinfo.detail }) : h('p', { text }));
 }
 
-function field(r, name, kind, attrs = {}) {
+function field(r, name, kind, attrs = {}, after = null) {
   const value = r[name] === undefined || r[name] === null ? '' : name === 'scale' ? showScale(r[name]) : r[name];
   return h('input', { type: kind, value: String(value), 'aria-label': name, ...attrs, oninput: (ev) => {
     const raw = ev.target.value.trim();
@@ -124,6 +144,7 @@ function field(r, name, kind, attrs = {}) {
       r[name] = raw;
     }
     setDirty(true);
+    if (after) after();
   } });
 }
 
@@ -141,14 +162,18 @@ function pickedRows() {
     const live = h('td', { class: 'value', text: boardValue(r) });
     live.picked = true;
     shown.set(r.key, [...(shown.get(r.key) || []), live]);
+    // a reading the page sends without decimals gets the unit's default from the app: show that one
+    const wanted = () => (r.decimals !== undefined ? r.decimals : defaultDecimals(r.unit || (it ? it.unit : '')));
+    const decimals = h('select', { 'aria-label': 'decimals', onchange: (ev) => { r.decimals = Number(ev.target.value); setDirty(true); } },
+      [0, 1, 2, 3].map((d) => h('option', { value: String(d), selected: wanted() === d, text: String(d) })));
+    const syncDecimals = () => decimals.children.forEach((o) => { o.selected = Number(o.value) === wanted(); });
     return h('tr', {},
       h('td', {}, r.id ? field(r, 'id', 'text', { maxlength: 15 }) : h('span', { class: 'muted', text: '(on save)' })),
       h('td', {}, field(r, 'label', 'text', { maxlength: 23, placeholder: it ? it.label : '' }),
         it ? null : h('div', { class: 'error', text: 'Not in HWiNFO now' })),
-      h('td', {}, field(r, 'unit', 'text', { maxlength: 7, placeholder: it ? it.unit : '' })),
+      h('td', {}, field(r, 'unit', 'text', { maxlength: 7, placeholder: it ? it.unit : '' }, syncDecimals)),
       h('td', {}, field(r, 'scale', 'text', { placeholder: '1' })),
-      h('td', {}, h('select', { 'aria-label': 'decimals', onchange: (ev) => { r.decimals = Number(ev.target.value); setDirty(true); } },
-        [0, 1, 2, 3].map((d) => h('option', { value: String(d), selected: (r.decimals || 0) === d ? true : null, text: String(d) })))),
+      h('td', {}, decimals),
       h('td', {}, field(r, 'min', 'number', { step: 'any' })),
       h('td', {}, field(r, 'max', 'number', { step: 'any' })),
       live,
@@ -159,6 +184,7 @@ function pickedRows() {
 }
 
 async function save() {
+  if (badScale()) return;
   try {
     state = await api('PUT', '/api/readings', picked);
     picked = clone(state.picked);
@@ -191,6 +217,7 @@ function renderPicked() {
     h('p', { class: 'muted', text: 'The boards name each one pc.<id>. Scale multiplies HWiNFO\'s value: 1/1024 turns MB into GB.' }),
     body,
     h('div', { class: 'row' }, parts.save, parts.undo, parts.msg));
+  applyScaleCheck();
 }
 
 function toggle(item, on) {
@@ -342,11 +369,16 @@ async function refresh() {
     return;
   }
   const savedChanged = JSON.stringify(next.picked) !== JSON.stringify(state.picked);
+  const sensorsChanged = next.hwinfo.status !== state.hwinfo.status
+    || JSON.stringify(next.items.map((it) => it.key)) !== JSON.stringify(state.items.map((it) => it.key));
   state = next;
   if (savedChanged && !dirty) {
     picked = clone(state.picked);
     renderPicked();
+  } else if (sensorsChanged && !dirty) {
+    renderPicked(); // the rows find their sensors, or lose them
   }
+  if (sensorsChanged) renderSensorList(); // keeps the search and the collapsed groups
   renderPill();
   const hw = hwinfoSection();
   parts.hwinfo.replaceWith(hw);
