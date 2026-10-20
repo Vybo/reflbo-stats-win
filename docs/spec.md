@@ -99,7 +99,7 @@ As built: a newly ticked reading goes to the app with its key alone, and the app
   - **Connection:**
     - the PC's address(es) and port, to enter on reflbo's PC page;
     - the token, with Copy and New token;
-    - the LAN port (a restart applies it).
+    - the LAN port (Apply opens it at once).
   - **App:** Start with Windows, the LAN port (Apply opens it at once), the version, and the config file's path.
 - **As built:**
   - the live values refresh every second without redrawing the fields being edited; an edit updates Save and Undo in place, so the focus stays and the first click saves; the search redraws the list under its box, and a group the owner collapsed stays collapsed;
@@ -178,12 +178,17 @@ Minors from the branch's review (2026-10-19), to fix where later work touches th
 - Any settings change resends an unchanged catalogue.
 - The config file is two renames, not one replace (`ReplaceFileW`), and Defender's sharing violations aren't retried; the page's API doesn't serialise its read-modify-write of it.
 - ANSI text reads as Latin-1, not the system code page (cp1250 letters); a UTF-8 field cut mid-character falls back whole.
-- The scale field shows bad input as NaN and refuses a decimal comma; `maxlength` counts characters where the app counts bytes.
+- The scale field shows a bad input back as NaN (Save is blocked with a message, and a decimal comma works); `maxlength` counts characters where the app counts bytes.
 - The Origin check takes any loopback port; an oversized body gets "send a list of readings", not 413.
 - Every Windows session shares loopback: another logged-in user's browser reaches this user's page.
 - Start with Windows stays ticked when Task Manager has disabled the entry (`StartupApproved\Run`).
 - The addresses include virtual adapters (WSL, Hyper-V, VPN); a board before its hello lists "0 ms".
 - No test covers a half-open or slow board, or the page's focus (the fake DOM has none).
+- A stale refresh that arrives after a Save can put the pre-save list back for about a second, and an edit made in that second saves over the Save (needs a request generation counter).
+- Every hello makes the app read HWiNFO again, so a token holder that loops hellos makes it contend for HWiNFO's mutex.
+- A board closed by New token while its upgrade is in flight gets 1001 with no reason (the board shows "the PC app quit"; the session ends either way).
+- A port-open failure other than "address in use" (WSAEACCES from Hyper-V's or WSL's reserved ranges) ends the windowed app through `logger.Fatal` with nothing on screen; it is in `log.txt` now.
+- A failed port change shows the port as "—" and "boards can't reach this PC" while the old listener still serves the boards.
 
 ## 13. Licence
 
@@ -196,3 +201,4 @@ Apache-2.0, as reflbo. hwinfo-streamdeck (GPL-3.0) is a reference for what HWiNF
 | r1 | 2026-10-19 | First draft from the owner's brainstorming answers (reflbo D44) |
 | r2 | 2026-10-19 | As built on `plan/m7`: the known layouts and their refusals (§4), defaults filled by the app (§5), closing reasons and the source's pace (§6), the page and the tray as built (§7, §8), the log (§9) |
 | r3 | 2026-10-19 | The branch's review: stale by HWiNFO's polling period, non-finite numbers as none, the mutex's thread (§4); a taken LAN port (§6, §11); the page's edits in place (§7); the open items (§12) |
+| r4 | 2026-10-20 | The final review's fixes: the log file first, the polling period only from a header that has it, a null scale refused, the scale's comma and its message, sensors appearing after the page opened, the decimals a new reading shows; the Connection wording (§7) and the new open items (§12) |
