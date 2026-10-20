@@ -24,6 +24,20 @@ var version = "dev" // set by the build: -ldflags "-X main.version=1.0.0"
 
 const maxLog = 1 << 20
 
+// quiet passes writes on and swallows their errors: the windowed exe's stderr has no handle, and a failing
+// leg must not stop the file's.
+type quiet struct{ w io.Writer }
+
+func (q quiet) Write(p []byte) (int, error) {
+	q.w.Write(p)
+	return len(p), nil
+}
+
+// logWriter writes to the file first, then to stderr where there is one.
+func logWriter(file, stderr io.Writer) io.Writer {
+	return io.MultiWriter(file, quiet{stderr})
+}
+
 // openLog appends to log.txt beside the settings, starting it afresh past 1 MB; the exe has no console.
 func openLog(configPath string) *log.Logger {
 	path := filepath.Join(filepath.Dir(configPath), "log.txt")
@@ -34,7 +48,7 @@ func openLog(configPath string) *log.Logger {
 	os.MkdirAll(filepath.Dir(path), 0o700)
 	var w io.Writer = os.Stderr
 	if f, err := os.OpenFile(path, flags, 0o600); err == nil {
-		w = io.MultiWriter(os.Stderr, f)
+		w = logWriter(f, os.Stderr)
 	}
 	return log.New(w, "", log.LstdFlags)
 }
