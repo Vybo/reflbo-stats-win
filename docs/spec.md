@@ -1,7 +1,7 @@
 # reflbo-stats: design spec
 
 - **Date:** 2026-10-19
-- **Status:** Draft for the owner's review (r1)
+- **Status:** As built (r3, after the branch's review); the owner's checks on the PC wait (§10)
 - **Covers:** the Windows tray app that serves a PC's HWiNFO sensors to [reflbo](https://github.com/Vybo/reflbo) boards on the LAN
 - **Related:** reflbo's design spec, `docs/specs/2026-09-25-firmware-design.md` in the reflbo repository: §12a (the protocol and the board's side), decision D44 (§1.2), milestone M7 (§18). Where the two disagree on the protocol, reflbo's §12a wins; fix this file.
 
@@ -45,16 +45,18 @@ testdata/           HWiNFO dumps made with -dump on the owner's PC
 ## 4. Reading HWiNFO
 
 - **Where:** the file mapping `Global\HWiNFO_SENS_SM2`, opened read-only (`OpenFileMapping`, `MapViewOfFile`), as HWiNFO's published shared-memory header (`hwisenssm2.h`) describes it. The header is signature `HWiS`, version, revision, poll time, and the offsets, sizes and counts of the sensor and reading sections. Each reading has its type, sensor index, reading id, labels, unit, and value, minimum, maximum and average.
-- **Element sizes:** the reader takes them from the header, so a newer HWiNFO with longer elements still reads. It refuses a version it doesn't know, or sizes smaller than the fields it reads, and says so on the page.
+- **Element sizes:** the reader takes them from the header, so a newer HWiNFO with longer elements still reads. It refuses a version it doesn't know (as built it knows 1 and 2), or sizes smaller than the fields it reads, and says so on the page. The boards then see "not running" (the protocol's four states have no fifth), while the page shows the reason.
 - **States:**
   - **not running:** no mapping.
   - **shm off:** HWiNFO runs, the mapping is missing: Shared Memory Support is off in HWiNFO's settings.
-  - **stale:** the poll time hasn't moved for 5 s.
+  - **stale:** the poll time hasn't moved for three of HWiNFO's polling periods (the header's, offset 44), and never under 5 s, as the poll time counts whole seconds.
   - **ok:** otherwise.
   - The board gets them in `/v1/info` and in `status` messages.
 - **A reading's key:** sensor id, sensor instance and reading id, which stay the same across HWiNFO's restarts. The page shows HWiNFO's user labels where the owner renamed them in HWiNFO, else its original ones.
 - **Text:** labels are read as UTF-8 where HWiNFO gives them (its `utf` fields), else from its ANSI ones in the system code page.
 - **`-dump <file>`** writes the mapping as it is once, for tests. A dump holds sensor names and values only.
+- **Reading it** (as built): under HWiNFO's mutex (`Global\HWiNFO_SM2_MUTEX`, 50 ms at most; an abandoned one counts as taken) when it has one, so a poll in progress isn't read half-written, with the goroutine locked to its OS thread meanwhile, as a Windows mutex belongs to its thread; "shm off" against "not running" by whether an `hwinfo*.exe` process runs.
+- **Numbers:** a value, minimum or maximum that isn't finite (HWiNFO's NaN, an infinity) is no value (`null`), as JSON can't carry it; so is a value a scale overflows.
 
 ## 5. The picked readings
 
@@ -69,6 +71,8 @@ Each reading the owner ticks gets:
 
 At most 32 readings. Their order on the page is the catalogue's order, and the board's PC preset fills its slots from the first ones.
 
+As built: a newly ticked reading goes to the app with its key alone, and the app fills in the rest on Save, so its rules live in one place: the label and unit from HWiNFO (cut at a character), the id from the label, the scale 1, decimals 0 for %, MHz, MB, RPM, KB/s and MB/s, 3 for V and 1 for the rest, and 0–100 for a %. The scale is typed as a number or a fraction (`1/1024`) and shown back as one.
+
 ## 6. The LAN API (reflbo §12a)
 
 - **Port** 47123 by default, on all interfaces, for `/v1/*` only. Every request needs `Authorization: Bearer <token>`, otherwise 401.
@@ -79,7 +83,10 @@ At most 32 readings. Their order on the page is the catalogue's order, and the b
   - It sends the `catalog` again after any change on the page, and a `status` when HWiNFO's state changes.
   - It pings every 5 s.
   - `null` stands for a reading HWiNFO doesn't deliver now (stale, gone, or HWiNFO not running).
-- **Limits:** frames of at most 8 KB each way; a board that sends more, or JSON deeper than 4 levels, is closed. At most 8 boards at once.
+- **Limits:** frames of at most 8 KB each way; a board that sends more, or JSON deeper than 4 levels, is closed. At most 8 boards at once; a ninth gets 503.
+- **Closing** (as built), with the reason a board sees: "no hello" after 5 s without one, "protocol N", "too deep" and "new token" (policy violation, 1008), a frame over 8 KB (1009), and Quit (going away, 1001).
+- **The source** is read at the fastest interval a connected board asked for, never below 250 ms, and once a second with no board.
+- **A LAN port the app can't open** (another program holds it) doesn't stop it: the settings page and the tray run, the page says why under Connection (and opens by itself at a start), and Apply on a new port opens it at once.
 - **Token:** 128 random bits, shown as 26 base32 characters in groups. "New token" on the page closes every board's connection.
 
 ## 7. The settings page
@@ -93,7 +100,12 @@ At most 32 readings. Their order on the page is the catalogue's order, and the b
     - the PC's address(es) and port, to enter on reflbo's PC page;
     - the token, with Copy and New token;
     - the LAN port (a restart applies it).
-  - **App:** Start with Windows, the version, and the config file's path.
+  - **App:** Start with Windows, the LAN port (Apply opens it at once), the version, and the config file's path.
+- **As built:**
+  - the live values refresh every second without redrawing the fields being edited; an edit updates Save and Undo in place, so the focus stays and the first click saves; the search redraws the list under its box, and a group the owner collapsed stays collapsed;
+  - New token takes a second click to confirm (no `confirm()`, so a driven browser doesn't block);
+  - Save and Undo changes work on the whole list;
+  - a refusal shows the app's reason and keeps the edits.
 - **Windows firewall:** the first start asks to allow the app; private networks are enough. The page says so if no board has connected.
 
 ## 8. The tray
@@ -105,7 +117,9 @@ At most 32 readings. Their order on the page is the catalogue's order, and the b
   - **Quit**, which closes the boards' connections cleanly, so they end their sessions at once rather than after 15 s.
 - **Icon:** shows the state: normal, a warning mark while HWiNFO isn't "ok", and a dot while a board is connected.
 - **Auto-start:** off by default. When on, it is the per-user Run key (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`) with the exe's path, so no administrator rights are needed. Turning it off removes the key.
-- **One instance:** a second start opens the first one's page and exits.
+- **One instance:** a second start opens the first one's page and exits. As built, the settings page's port tells: a second app can't listen on it.
+- **The first start**, with no reading picked, opens the settings page.
+- **The tooltip** reads HWiNFO's state and the number of boards; the menu's Start with Windows follows the page's checkbox within 2 s.
 
 ## 9. Configuration
 
@@ -123,7 +137,7 @@ At most 32 readings. Their order on the page is the catalogue's order, and the b
 }
 ```
 
-A reading whose key HWiNFO no longer has (another CPU, a removed drive) stays in the list, marked missing, and is sent as `null`. Auto-start lives in the Run key, not in the file.
+A reading whose key HWiNFO no longer has (another CPU, a removed drive) stays in the list, marked missing, and is sent as `null`. Auto-start lives in the Run key, not in the file. A missing or broken file and `.bak` give the defaults, written at once. The log is `log.txt` beside it, started afresh past 1 MB; the exe has no console.
 
 ## 10. Tests and checks
 
@@ -150,14 +164,35 @@ A reading whose key HWiNFO no longer has (another CPU, a removed drive) stays in
 | HWiNFO changes its shared memory | The header's sizes are honoured; an unknown version is refused and named on the page |
 | The unsigned exe trips SmartScreen; an antivirus may flag an exe that reads another process's shared memory | Warn in the README; build reproducibly from the source |
 | The token travels in plain HTTP on the LAN | LAN only; New token on the page |
-| A port is taken | The page and the log say which; both ports are configurable |
+| A port is taken | The LAN port: the page and the log say which, and another opens at once; the settings page's: a second copy takes it for the first one running, and it is set in config.json |
 
-## 12. Licence
+## 12. Open items
+
+Minors from the branch's review (2026-10-19), to fix where later work touches the code:
+- Nothing keeps the app's own frames under 8 KB: labels full of `<`, `>` or `&` are escaped to 6 bytes each (`SetEscapeHTML(false)` and a size check on Save).
+- A new token or Quit closes the boards one after another, 5 s each for one that doesn't answer; the LAN listener should stop first, and the closes run at once.
+- The ping waits in the write loop, delaying the readings by a round trip every 5 s.
+- A hello without `interval_ms` gets 250 ms, not 1 s; `1000.0` doesn't parse.
+- The source's loop and each board's ticker aren't in step, so a value can be an interval old or repeat; a board before its hello slows the loop to 10 s.
+- A fifth interval change in a row is dropped (a queue of four).
+- Any settings change resends an unchanged catalogue.
+- The config file is two renames, not one replace (`ReplaceFileW`), and Defender's sharing violations aren't retried; the page's API doesn't serialise its read-modify-write of it.
+- ANSI text reads as Latin-1, not the system code page (cp1250 letters); a UTF-8 field cut mid-character falls back whole.
+- The scale field shows bad input as NaN and refuses a decimal comma; `maxlength` counts characters where the app counts bytes.
+- The Origin check takes any loopback port; an oversized body gets "send a list of readings", not 413.
+- Every Windows session shares loopback: another logged-in user's browser reaches this user's page.
+- Start with Windows stays ticked when Task Manager has disabled the entry (`StartupApproved\Run`).
+- The addresses include virtual adapters (WSL, Hyper-V, VPN); a board before its hello lists "0 ms".
+- No test covers a half-open or slow board, or the page's focus (the fake DOM has none).
+
+## 13. Licence
 
 Apache-2.0, as reflbo. hwinfo-streamdeck (GPL-3.0) is a reference for what HWiNFO offers, never a source of code.
 
-## 13. Revision history
+## 14. Revision history
 
 | Rev | Date | Change |
 |---|---|---|
 | r1 | 2026-10-19 | First draft from the owner's brainstorming answers (reflbo D44) |
+| r2 | 2026-10-19 | As built on `plan/m7`: the known layouts and their refusals (§4), defaults filled by the app (§5), closing reasons and the source's pace (§6), the page and the tray as built (§7, §8), the log (§9) |
+| r3 | 2026-10-19 | The branch's review: stale by HWiNFO's polling period, non-finite numbers as none, the mutex's thread (§4); a taken LAN port (§6, §11); the page's edits in place (§7); the open items (§12) |
