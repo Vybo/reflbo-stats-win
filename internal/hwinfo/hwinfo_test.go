@@ -125,3 +125,16 @@ func TestThePollingPeriodIsRead(t *testing.T) {
 		t.Fatalf("polling period: %+v %v", s, err)
 	}
 }
+
+func TestAShortHeaderHasNoPollingPeriod(t *testing.T) {
+	b := sample(sensorBaseSize, readingBaseSize)
+	le := binary.LittleEndian
+	// a 44-byte header: the sections move up 4 bytes, so offset 44 is the first sensor's id
+	short := append(append([]byte{}, b[:44]...), b[48:]...)
+	le.PutUint32(short[20:], le.Uint32(short[20:])-4)
+	le.PutUint32(short[32:], le.Uint32(short[32:])-4)
+	s, err := Parse(short)
+	if err != nil || s.PollingPeriodMS != 0 || len(s.Sensors) != 2 || s.Sensors[0].ID != 0xf0000400 {
+		t.Fatalf("short header: %+v %v", s, err)
+	}
+}

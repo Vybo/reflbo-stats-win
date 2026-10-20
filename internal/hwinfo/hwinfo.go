@@ -95,13 +95,15 @@ func Parse(b []byte) (*Snapshot, error) {
 	default:
 		return nil, errors.New("not HWiNFO's shared memory")
 	}
-	s := &Snapshot{Version: le.Uint32(b[4:]), Revision: le.Uint32(b[8:]), PollTime: int64(le.Uint64(b[12:])),
-		PollingPeriodMS: le.Uint32(b[44:])}
+	s := &Snapshot{Version: le.Uint32(b[4:]), Revision: le.Uint32(b[8:]), PollTime: int64(le.Uint64(b[12:]))}
 	if !knownVersions[s.Version] {
 		return nil, fmt.Errorf("HWiNFO's shared memory version %d is unknown to this app", s.Version)
 	}
 	sOff, sSize, sCount := le.Uint32(b[20:]), le.Uint32(b[24:]), le.Uint32(b[28:])
 	rOff, rSize, rCount := le.Uint32(b[32:]), le.Uint32(b[36:]), le.Uint32(b[40:])
+	if sOff >= HeaderSize && rOff >= HeaderSize { // the period is the header's last field; a 44-byte header has none
+		s.PollingPeriodMS = le.Uint32(b[44:])
+	}
 	if sSize < sensorBaseSize {
 		return nil, fmt.Errorf("HWiNFO's sensors are %d bytes each, less than the %d this app reads", sSize, sensorBaseSize)
 	}
