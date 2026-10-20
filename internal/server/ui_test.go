@@ -271,3 +271,15 @@ func TestAScaleLeftOutIsOneAndAZeroIsRefused(t *testing.T) {
 		t.Fatalf("a zero scale: %d %v", code, st)
 	}
 }
+
+func TestAnExplicitNullScaleIsRefused(t *testing.T) {
+	r := newUIRig(t)
+	before := r.hub.Config().Readings
+	code, st := r.do(t, "PUT", "/api/readings", `[{"key":"k:cpu","id":"cpu_x","label":"X","unit":"%","scale":null}]`)
+	if code != 400 || st["error"] != "cpu_x: the scale is not a number" {
+		t.Fatalf("a null scale: %d %v", code, st)
+	}
+	if len(r.hub.Config().Readings) != len(before) {
+		t.Fatal("a refused list was saved")
+	}
+}

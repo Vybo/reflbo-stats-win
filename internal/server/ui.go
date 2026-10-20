@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"mime"
 	"net"
@@ -159,8 +160,23 @@ func cutBytes(s string, n int) string {
 // incoming is a reading as the page sends it: one may leave out its decimals or its scale, which differs from 0.
 type incoming struct {
 	config.Reading
-	Decimals *int     `json:"decimals"`
-	Scale    *float64 `json:"scale"`
+	Decimals *int       `json:"decimals"`
+	Scale    scaleField `json:"scale"`
+}
+
+// scaleField tells a scale left out (1) from one sent as null, which is a page that couldn't read what was typed.
+type scaleField struct {
+	set, null bool
+	v         float64
+}
+
+func (f *scaleField) UnmarshalJSON(b []byte) error {
+	f.set = true
+	if string(b) == "null" {
+		f.null = true
+		return nil
+	}
+	return json.Unmarshal(b, &f.v)
 }
 
 // withDefaults fills what a newly ticked reading leaves out from what HWiNFO says of it (spec §5).
@@ -170,8 +186,8 @@ func withDefaults(in incoming, item *source.Item, taken map[string]bool) config.
 		r.Decimals = *in.Decimals
 	}
 	r.Scale = 1 // left out: as HWiNFO has it; a 0 sent is refused by Validate
-	if in.Scale != nil {
-		r.Scale = *in.Scale
+	if in.Scale.set {
+		r.Scale = in.Scale.v
 	}
 	if item != nil {
 		if r.Label == "" {
@@ -216,6 +232,16 @@ func (u *UI) putReadings(w http.ResponseWriter, r *http.Request) {
 	for _, p := range sent {
 		if p.ID != "" {
 			taken[p.ID] = true
+		}
+	}
+	for _, in := range sent {
+		if in.Scale.null {
+			id := in.ID
+			if id == "" {
+				id = in.Key
+			}
+			refuse(w, fmt.Errorf("%s: the scale is not a number", id))
+			return
 		}
 	}
 	picked := make([]config.Reading, len(sent)) // never nil: null is an empty list
