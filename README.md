@@ -12,7 +12,7 @@ A small Windows tray app that serves this PC's sensors, as [HWiNFO](https://www.
 
 ## Install and first start
 
-1. Download `reflbo-stats.exe` and put it where it can stay, for example `C:\Tools\reflbo-stats\`.
+1. Download `reflbo-stats.exe` from the [latest release](https://github.com/Vybo/reflbo-stats-win/releases/latest) and put it where it can stay, for example `C:\Tools\reflbo-stats\`.
 2. Run it. The file isn't signed, so Windows SmartScreen may warn the first time: choose **More info ▸ Run anyway**.
 3. Windows' firewall asks whether reflbo-stats may use the network. Allow it for **private networks**: the boards connect to it. If Windows has your home network marked Public, mark it Private (Settings ▸ Network & internet ▸ your network ▸ Private), or allow the app for public networks too.
 4. The settings page opens in your browser (`http://127.0.0.1:47124/`). Tick the readings you want the boards to have, adjust them, and **Save**.
