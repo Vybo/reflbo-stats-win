@@ -1,4 +1,18 @@
 reflbo-stats
 Copyright 2026 Dan Vybiral
 
-This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License, version 3 only, as published by
+the Free Software Foundation. The licence's text is in LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+Versions up to commit fef9fa7 were released under the Apache License,
+Version 2.0, and remain available under its terms.
+
+Its dependencies keep their own licences: fyne.io/systray (Apache-2.0),
+github.com/coder/websocket (ISC), golang.org/x/sys (BSD-3-Clause), in Linux
+builds github.com/godbus/dbus/v5 (BSD-2-Clause), and Go's standard library
+(BSD-3-Clause).

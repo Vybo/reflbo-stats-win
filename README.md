@@ -66,4 +66,4 @@ reflbo-stats.exe -dump hwinfo.bin                    # on the PC: HWiNFO's share
 
 ## Licence
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).
+GPL-3.0-only: see [LICENSE](LICENSE) and [NOTICE](NOTICE). Versions up to commit `fef9fa7` were released under Apache-2.0.

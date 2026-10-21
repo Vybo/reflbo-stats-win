@@ -192,7 +192,7 @@ Minors from the branch's review (2026-10-19), to fix where later work touches th
 
 ## 13. Licence
 
-Apache-2.0, as reflbo. hwinfo-streamdeck (GPL-3.0) is a reference for what HWiNFO offers, never a source of code.
+GPL-3.0-only, as reflbo (its D46, 2026-10-21); versions up to `fef9fa7` stay Apache-2.0. The dependencies keep their own licences (§3, `NOTICE`). hwinfo-streamdeck (GPL-3.0) is a reference for what HWiNFO offers, never a source of code.
 
 ## 14. Revision history
 
@@ -202,3 +202,4 @@ Apache-2.0, as reflbo. hwinfo-streamdeck (GPL-3.0) is a reference for what HWiNF
 | r2 | 2026-10-19 | As built on `plan/m7`: the known layouts and their refusals (§4), defaults filled by the app (§5), closing reasons and the source's pace (§6), the page and the tray as built (§7, §8), the log (§9) |
 | r3 | 2026-10-19 | The branch's review: stale by HWiNFO's polling period, non-finite numbers as none, the mutex's thread (§4); a taken LAN port (§6, §11); the page's edits in place (§7); the open items (§12) |
 | r4 | 2026-10-20 | The final review's fixes: the log file first, the polling period only from a header that has it, a null scale refused, the scale's comma and its message, sensors appearing after the page opened, the decimals a new reading shows; the Connection wording (§7) and the new open items (§12) |
+| r5 | 2026-10-21 | The licence: GPL-3.0-only, as reflbo (its D46) (§13) |
